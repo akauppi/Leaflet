@@ -21,6 +21,17 @@
 
   <style>
     svg.leaflet-active-layer { border: thin solid red; }
+    rect {
+      stroke: red;
+      fill: blue;
+      opacity: 0.8;
+      stroke-width: 2;
+    }
+    text {
+      fill: white;
+      stroke: black;
+      font-size: 72px;
+    }
   </style>    
 </head>
 <body>
@@ -89,16 +100,9 @@
 
     // 100 x 100 m square, from (0,0)
     //
-    S.rect( 0,0, 100,100, 10,10 )    // last params: edge rounding radius
-      .attr( {
-        stroke: "#f00",
-        strokeWidth: 2
-      } );
+    S.rect( 0,0, 100,100, 10,10 );   // last params: edge rounding radius
 
-    S.text( 200, 100, "Drag the croc" )
-      .attr( {
-        style: "fill: white; stroke: #000000;  font-size: 48px;"
-      } );
+    S.text( 200, 100, "Drag the croc" );
 
     map.addLayer(overlay);
 
