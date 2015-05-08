@@ -93,7 +93,7 @@
   
         function dragStart() {
           this.data( DRAG_T0_KEY, this.transform().local );
-          this.data( DRAG_RATIO_KEY, overlay._pixelsToSvgRatio( L.point(1,1) ) );    // size of a pixel in SVG (constant per zoom level)
+          this.data( DRAG_RATIO_KEY, overlay.pixelToSvg() );    // pixel size in SVG (constant per zoom level)
           
           if (customStart) {
             customStart.call(this);

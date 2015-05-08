@@ -176,16 +176,15 @@ L.ActiveOverlay = L.Layer.extend({
 	},
 
 	/*
-	* Conversion of pixel dimensions (dx,dy) to/from SVG dimensions.
+	* Size of a screen pixel in SVG dimensions.
 	*
-	* Note: The ratio remains constant on a certain zoom level, so instead of calling
-	*      conversions per each drag event (for example), the upper level can cache
-	*      the ratios for (1,1) pixel and convert locally.
+	* Note: Returning a 'Point' though it's a dimension, not a coordinate.
 	*
-	* Note: '_' preceding means we can destroy the argument.
+	* Note: The API is ready for storing separate x and y factors, though currently we don't.
 	*/
-	_pixelsToSvgRatio: function(_p) {    // (Point) -> Point
-		return _p._divideBy(this._factor);
+	pixelToSvg: function() {    // () -> Point
+		var tmp = 1.0 / this._factor;
+		return L.point(tmp, tmp);
 	}
 });
 
