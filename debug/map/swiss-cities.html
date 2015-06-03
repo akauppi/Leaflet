@@ -95,6 +95,16 @@
       .attr('stroke','black')
       .attr('stroke-width',1)
       .attr('fill',function(d){return (d.place == 'city') ? "red" : "blue";});
+
+    // Testing for https://github.com/teralytics/Leaflet.D3SvgOverlay/issues/5#issuecomment-108143922
+    // (no problems)
+    /*
+    map.on('zoomend', function(e) {
+      if (map.getZoom() < 8) {
+        map.removeLayer(overlay);
+      }
+    });
+    */
   });
 
   /*
