@@ -8,6 +8,10 @@ L.Polygon = L.Polyline.extend({
 		fill: true
 	},
 
+	isEmpty: function () {
+		return !this._latlngs.length || !this._latlngs[0].length;
+	},
+
 	getCenter: function () {
 		var i, j, p1, p2, f, area, x, y, center,
 		    points = this._rings[0],
@@ -47,6 +51,17 @@ L.Polygon = L.Polyline.extend({
 			result.pop();
 		}
 		return result;
+	},
+
+	_setLatLngs: function (latlngs) {
+		L.Polyline.prototype._setLatLngs.call(this, latlngs);
+		if (L.Polyline._flat(this._latlngs)) {
+			this._latlngs = [this._latlngs];
+		}
+	},
+
+	_defaultShape: function () {
+		return L.Polyline._flat(this._latlngs[0]) ? this._latlngs[0] : this._latlngs[0][0];
 	},
 
 	_clipPoints: function () {

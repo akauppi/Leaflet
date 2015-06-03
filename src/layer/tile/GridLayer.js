@@ -230,6 +230,10 @@ L.GridLayer = L.Layer.extend({
 	_pruneTiles: function () {
 		var key, tile;
 
+		var zoom = this._map.getZoom();
+		if (zoom > this.options.maxZoom ||
+			zoom < this.options.minZoom) { return this._removeAllTiles(); }
+
 		for (key in this._tiles) {
 			tile = this._tiles[key];
 			tile.retain = tile.current;
@@ -349,7 +353,11 @@ L.GridLayer = L.Layer.extend({
 		    translate = level.origin.multiplyBy(scale)
 		        .subtract(this._map._getNewPixelOrigin(center, zoom)).round();
 
-		L.DomUtil.setTransform(level.el, translate, scale);
+		if (L.Browser.any3d) {
+			L.DomUtil.setTransform(level.el, translate, scale);
+		} else {
+			L.DomUtil.setPosition(level.el, translate);
+		}
 	},
 
 	_resetGrid: function () {
@@ -389,11 +397,11 @@ L.GridLayer = L.Layer.extend({
 		// TODO move to reset
 		// var zoom = this._map.getZoom();
 
-		// if (zoom > this.options.maxZoom ||
-		//     zoom < this.options.minZoom) { return; }
-
 		if (center === undefined) { center = map.getCenter(); }
 		if (zoom === undefined) { zoom = Math.round(map.getZoom()); }
+
+		if (zoom > this.options.maxZoom ||
+			zoom < this.options.minZoom) { return; }
 
 		var pixelBounds = map.getPixelBounds(center, zoom),
 			tileRange = this._pxBoundsToTileRange(pixelBounds),

@@ -33,6 +33,7 @@ L.Marker = L.Layer.extend({
 
 	onRemove: function () {
 		if (this.dragging && this.dragging.enabled()) {
+			this.options.draggable = true;
 			this.dragging.removeHooks();
 		}
 
@@ -80,6 +81,10 @@ L.Marker = L.Layer.extend({
 		}
 
 		return this;
+	},
+
+	getElement: function () {
+		return this._icon;
 	},
 
 	update: function () {
