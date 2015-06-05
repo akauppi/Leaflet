@@ -155,11 +155,12 @@ L.GridLayer = L.Layer.extend({
 		}
 
 		var now = +new Date(),
-			nextFrame = false;
+			nextFrame = false,
+			willPrune = false;
 
 		for (var key in this._tiles) {
 			var tile = this._tiles[key];
-			if (!tile.current || !tile.loaded || tile.active) { continue; }
+			if (!tile.current || !tile.loaded) { continue; }
 
 			var fade = Math.min(1, (now - tile.loaded) / 200);
 			if (fade < 1) {
@@ -167,10 +168,12 @@ L.GridLayer = L.Layer.extend({
 				nextFrame = true;
 			} else {
 				L.DomUtil.setOpacity(tile.el, opacity);
+				if (tile.active) { willPrune = true; }
 				tile.active = true;
-				this._pruneTiles();
 			}
 		}
+
+		if (willPrune) { this._pruneTiles(); }
 
 		if (nextFrame) {
 			L.Util.cancelAnimFrame(this._fadeFrame);
@@ -466,7 +469,7 @@ L.GridLayer = L.Layer.extend({
 
 		// don't load tile if it doesn't intersect the bounds in options
 		var tileBounds = this._tileCoordsToBounds(coords);
-		return L.latLngBounds(this.options.bounds).intersects(tileBounds);
+		return L.latLngBounds(this.options.bounds).overlaps(tileBounds);
 	},
 
 	_keyToBounds: function (key) {
@@ -553,7 +556,7 @@ L.GridLayer = L.Layer.extend({
 
 		// we prefer top/left over translate3d so that we don't create a HW-accelerated layer from each tile
 		// which is slow, and it also fixes gaps between tiles in Safari
-		L.DomUtil.setPosition(tile, tilePos, true);
+		L.DomUtil.setPosition(tile, tilePos);
 
 		// save tile in cache
 		this._tiles[key] = {

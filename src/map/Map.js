@@ -15,7 +15,8 @@ L.Map = L.Evented.extend({
 
 		fadeAnimation: true,
 		trackResize: true,
-		markerZoomAnimation: true
+		markerZoomAnimation: true,
+		maxBoundsViscosity: 0.0
 	},
 
 	initialize: function (id, options) { // (HTMLElement or String, Object)
@@ -269,6 +270,10 @@ L.Map = L.Evented.extend({
 
 		if (this._loaded) {
 			this.fire('unload');
+		}
+
+		for (var i in this._layers) {
+			this._layers[i].remove();
 		}
 
 		return this;
