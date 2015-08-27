@@ -46,15 +46,14 @@ L.Draggable = L.Evented.extend({
 	_onDown: function (e) {
 		this._moved = false;
 
-		if (e.shiftKey || ((e.which !== 1) && (e.button !== 1) && !e.touches)) { return; }
+		if (L.DomUtil.hasClass(this._element, 'leaflet-zoom-anim')) { return; }
 
-		L.DomEvent.stopPropagation(e);
+		if (L.Draggable._dragging || e.shiftKey || ((e.which !== 1) && (e.button !== 1) && !e.touches) || !this._enabled) { return; }
+		L.Draggable._dragging = true;  // Prevent dragging multiple objects at once.
 
 		if (this._preventOutline) {
 			L.DomUtil.preventOutline(this._element);
 		}
-
-		if (L.DomUtil.hasClass(this._element, 'leaflet-zoom-anim')) { return; }
 
 		L.DomUtil.disableImageDrag();
 		L.DomUtil.disableTextSelection();
@@ -105,7 +104,7 @@ L.Draggable = L.Evented.extend({
 
 		L.Util.cancelAnimFrame(this._animRequest);
 		this._lastEvent = e;
-		this._animRequest = L.Util.requestAnimFrame(this._updatePosition, this, true, this._dragStartTarget);
+		this._animRequest = L.Util.requestAnimFrame(this._updatePosition, this, true);
 	},
 
 	_updatePosition: function () {
@@ -142,5 +141,6 @@ L.Draggable = L.Evented.extend({
 		}
 
 		this._moving = false;
+		L.Draggable._dragging = false;
 	}
 });

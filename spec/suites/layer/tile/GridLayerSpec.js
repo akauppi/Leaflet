@@ -57,14 +57,14 @@ describe('GridLayer', function () {
 		}
 
 		expect(loaded).to.eql({
-			'144:44': [0, 0],
-			'400:44': [1, 0],
-			'144:300': [0, 1],
-			'400:300': [1, 1],
-			'-112:44': [1, 0],
-			'656:44': [0, 0],
-			'-112:300': [1, 1],
-			'656:300': [0, 1]
+			'144:0': [0, 0],
+			'400:0': [1, 0],
+			'144:256': [0, 1],
+			'400:256': [1, 1],
+			'-112:0': [1, 0],
+			'656:0': [0, 0],
+			'-112:256': [1, 1],
+			'656:256': [0, 1]
 		});
 	});
 
@@ -107,7 +107,7 @@ describe('GridLayer', function () {
 	});
 
 	describe("#onAdd", function () {
-		it('is called after viewreset on first map load', function () {
+		it('is called after zoomend on first map load', function () {
 			var layer = L.gridLayer().addTo(map);
 
 			var onAdd = layer.onAdd,
@@ -118,7 +118,7 @@ describe('GridLayer', function () {
 			};
 
 			var onReset = sinon.spy();
-			map.on('viewreset', onReset);
+			map.on('zoomend', onReset);
 			map.setView([0, 0], 0);
 
 			expect(onReset.calledBefore(onAddSpy)).to.be.ok();

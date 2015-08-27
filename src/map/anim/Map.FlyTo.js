@@ -19,7 +19,7 @@ L.Map.include({
 
 		var w0 = Math.max(size.x, size.y),
 		    w1 = w0 * this.getZoomScale(startZoom, targetZoom),
-		    u1 = to.distanceTo(from),
+		    u1 = (to.distanceTo(from)) || 1,
 		    rho = 1.42,
 		    rho2 = rho * rho;
 
@@ -50,16 +50,19 @@ L.Map.include({
 			if (t <= 1) {
 				this._flyToFrame = L.Util.requestAnimFrame(frame, this);
 
-				this._resetView(
+				this._move(
 					this.unproject(from.add(to.subtract(from).multiplyBy(u(s) / u1)), startZoom),
-					this.getScaleZoom(w0 / w(s), startZoom), true, true);
+					this.getScaleZoom(w0 / w(s), startZoom));
 
 			} else {
-				this._resetView(targetCenter, targetZoom, true, true);
+				this
+					._move(targetCenter, targetZoom)
+					._moveEnd(true);
 			}
 		}
 
-		this.fire('zoomstart');
+		this._moveStart(true);
+
 		frame.call(this);
 		return this;
 	},

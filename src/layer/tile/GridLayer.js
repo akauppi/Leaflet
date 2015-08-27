@@ -31,7 +31,7 @@ L.GridLayer = L.Layer.extend({
 		this._levels = {};
 		this._tiles = {};
 
-		this._viewReset();
+		this._resetView();
 		this._update();
 	},
 
@@ -97,13 +97,18 @@ L.GridLayer = L.Layer.extend({
 
 	getEvents: function () {
 		var events = {
-			viewreset: this._viewReset,
-			moveend: this._move
+			viewreset: this._resetAll,
+			zoom: this._resetView,
+			moveend: this._onMoveEnd
 		};
 
 		if (!this.options.updateWhenIdle) {
 			// update tiles on move, but not more often than once per given interval
-			events.move = L.Util.throttle(this._move, this.options.updateInterval, this);
+			if (!this._onMove) {
+				this._onMove = L.Util.throttle(this._onMoveEnd, this.options.updateInterval, this);
+			}
+
+			events.move = this._onMove;
 		}
 
 		if (this._zoomAnimated) {
@@ -115,6 +120,11 @@ L.GridLayer = L.Layer.extend({
 
 	createTile: function () {
 		return document.createElement('div');
+	},
+
+	getTileSize: function () {
+		var s = this.options.tileSize;
+		return s instanceof L.Point ? s : new L.Point(s, s);
 	},
 
 	_updateZIndex: function () {
@@ -146,13 +156,13 @@ L.GridLayer = L.Layer.extend({
 
 	_updateOpacity: function () {
 		if (!this._map) { return; }
-		var opacity = this.options.opacity;
 
 		// IE doesn't inherit filter opacity properly, so we're forced to set it on tiles
-		if (!L.Browser.ielt9 && !this._map._fadeAnimated) {
-			L.DomUtil.setOpacity(this._container, opacity);
+		if (L.Browser.ielt9 || !this._map._fadeAnimated) {
 			return;
 		}
+
+		L.DomUtil.setOpacity(this._container, this.options.opacity);
 
 		var now = +new Date(),
 			nextFrame = false,
@@ -163,11 +173,11 @@ L.GridLayer = L.Layer.extend({
 			if (!tile.current || !tile.loaded) { continue; }
 
 			var fade = Math.min(1, (now - tile.loaded) / 200);
+
+			L.DomUtil.setOpacity(tile.el, fade);
 			if (fade < 1) {
-				L.DomUtil.setOpacity(tile.el, opacity * fade);
 				nextFrame = true;
 			} else {
-				L.DomUtil.setOpacity(tile.el, opacity);
 				if (tile.active) { willPrune = true; }
 				tile.active = true;
 			}
@@ -195,6 +205,7 @@ L.GridLayer = L.Layer.extend({
 	},
 
 	_updateLevels: function () {
+
 		var zoom = this._tileZoom,
 			maxZoom = this.options.maxZoom;
 
@@ -265,6 +276,17 @@ L.GridLayer = L.Layer.extend({
 		}
 	},
 
+	_resetAll: function () {
+		for (var z in this._levels) {
+			L.DomUtil.remove(this._levels[z].el);
+			delete this._levels[z];
+		}
+		this._removeAllTiles();
+
+		this._tileZoom = null;
+		this._resetView();
+	},
+
 	_retainParent: function (x, y, z, minZoom) {
 		var x2 = Math.floor(x / 2),
 			y2 = Math.floor(y / 2),
@@ -311,19 +333,20 @@ L.GridLayer = L.Layer.extend({
 		}
 	},
 
-	_viewReset: function (e) {
-		this._reset(this._map.getCenter(), this._map.getZoom(), e && e.hard);
+	_resetView: function (e) {
+		var pinch = e && e.pinch;
+		this._setView(this._map.getCenter(), this._map.getZoom(), pinch, pinch);
 	},
 
 	_animateZoom: function (e) {
-		this._reset(e.center, e.zoom, false, true, e.noUpdate);
+		this._setView(e.center, e.zoom, true, e.noUpdate);
 	},
 
-	_reset: function (center, zoom, hard, noPrune, noUpdate) {
+	_setView: function (center, zoom, noPrune, noUpdate) {
 		var tileZoom = Math.round(zoom),
 			tileZoomChanged = this._tileZoom !== tileZoom;
 
-		if (!noUpdate && (hard || tileZoomChanged)) {
+		if (!noUpdate && tileZoomChanged) {
 
 			if (this._abortLoading) {
 				this._abortLoading();
@@ -366,7 +389,7 @@ L.GridLayer = L.Layer.extend({
 	_resetGrid: function () {
 		var map = this._map,
 		    crs = map.options.crs,
-		    tileSize = this._tileSize = this._getTileSize(),
+		    tileSize = this._tileSize = this.getTileSize(),
 		    tileZoom = this._tileZoom;
 
 		var bounds = this._map.getPixelWorldBounds(this._tileZoom);
@@ -375,39 +398,47 @@ L.GridLayer = L.Layer.extend({
 		}
 
 		this._wrapX = crs.wrapLng && [
-			Math.floor(map.project([0, crs.wrapLng[0]], tileZoom).x / tileSize),
-			Math.ceil(map.project([0, crs.wrapLng[1]], tileZoom).x / tileSize)
+			Math.floor(map.project([0, crs.wrapLng[0]], tileZoom).x / tileSize.x),
+			Math.ceil(map.project([0, crs.wrapLng[1]], tileZoom).x / tileSize.y)
 		];
 		this._wrapY = crs.wrapLat && [
-			Math.floor(map.project([crs.wrapLat[0], 0], tileZoom).y / tileSize),
-			Math.ceil(map.project([crs.wrapLat[1], 0], tileZoom).y / tileSize)
+			Math.floor(map.project([crs.wrapLat[0], 0], tileZoom).y / tileSize.x),
+			Math.ceil(map.project([crs.wrapLat[1], 0], tileZoom).y / tileSize.y)
 		];
 	},
 
-	_getTileSize: function () {
-		return this.options.tileSize;
-	},
+	_onMoveEnd: function () {
+		if (!this._map) { return; }
 
-	_move: function () {
 		this._update();
 		this._pruneTiles();
 	},
 
+	_getTiledPixelBounds: function (center, zoom, tileZoom) {
+		var map = this._map;
+
+		var scale = map.getZoomScale(zoom, tileZoom),
+			pixelCenter = map.project(center, tileZoom).floor(),
+			halfSize = map.getSize().divideBy(scale * 2);
+
+		return new L.Bounds(pixelCenter.subtract(halfSize), pixelCenter.add(halfSize));
+	},
+
 	_update: function (center, zoom) {
+
 		var map = this._map;
 		if (!map) { return; }
 
-		// TODO move to reset
-		// var zoom = this._map.getZoom();
-
 		if (center === undefined) { center = map.getCenter(); }
-		if (zoom === undefined) { zoom = Math.round(map.getZoom()); }
+		if (zoom === undefined) { zoom = map.getZoom(); }
+		var tileZoom = Math.round(zoom);
 
-		if (zoom > this.options.maxZoom ||
-			zoom < this.options.minZoom) { return; }
+		if (tileZoom > this.options.maxZoom ||
+			tileZoom < this.options.minZoom) { return; }
 
-		var pixelBounds = map.getPixelBounds(center, zoom),
-			tileRange = this._pxBoundsToTileRange(pixelBounds),
+		var pixelBounds = this._getTiledPixelBounds(center, zoom, tileZoom);
+
+		var tileRange = this._pxBoundsToTileRange(pixelBounds),
 			tileCenter = tileRange.getCenter(),
 			queue = [];
 
@@ -419,7 +450,7 @@ L.GridLayer = L.Layer.extend({
 		for (var j = tileRange.min.y; j <= tileRange.max.y; j++) {
 			for (var i = tileRange.min.x; i <= tileRange.max.x; i++) {
 				var coords = new L.Point(i, j);
-				coords.z = zoom;
+				coords.z = tileZoom;
 
 				if (!this._isValidTile(coords)) { continue; }
 
@@ -480,10 +511,10 @@ L.GridLayer = L.Layer.extend({
 	_tileCoordsToBounds: function (coords) {
 
 		var map = this._map,
-		    tileSize = this._getTileSize(),
+		    tileSize = this.getTileSize(),
 
-		    nwPoint = coords.multiplyBy(tileSize),
-		    sePoint = nwPoint.add([tileSize, tileSize]),
+		    nwPoint = coords.scaleBy(tileSize),
+		    sePoint = nwPoint.add(tileSize),
 
 		    nw = map.wrapLatLng(map.unproject(nwPoint, coords.z)),
 		    se = map.wrapLatLng(map.unproject(sePoint, coords.z));
@@ -521,8 +552,9 @@ L.GridLayer = L.Layer.extend({
 	_initTile: function (tile) {
 		L.DomUtil.addClass(tile, 'leaflet-tile');
 
-		tile.style.width = this._tileSize + 'px';
-		tile.style.height = this._tileSize + 'px';
+		var tileSize = this.getTileSize();
+		tile.style.width = tileSize.x + 'px';
+		tile.style.height = tileSize.y + 'px';
 
 		tile.onselectstart = L.Util.falseFn;
 		tile.onmousemove = L.Util.falseFn;
@@ -612,7 +644,7 @@ L.GridLayer = L.Layer.extend({
 	},
 
 	_getTilePos: function (coords) {
-		return coords.multiplyBy(this._tileSize).subtract(this._level.origin);
+		return coords.scaleBy(this.getTileSize()).subtract(this._level.origin);
 	},
 
 	_wrapCoords: function (coords) {
@@ -624,9 +656,10 @@ L.GridLayer = L.Layer.extend({
 	},
 
 	_pxBoundsToTileRange: function (bounds) {
+		var tileSize = this.getTileSize();
 		return new L.Bounds(
-			bounds.min.divideBy(this._tileSize).floor(),
-			bounds.max.divideBy(this._tileSize).ceil().subtract([1, 1]));
+			bounds.min.unscaleBy(tileSize).floor(),
+			bounds.max.unscaleBy(tileSize).ceil().subtract([1, 1]));
 	},
 
 	_noTilesToLoad: function () {
