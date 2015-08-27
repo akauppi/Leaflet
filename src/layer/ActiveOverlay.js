@@ -54,10 +54,11 @@ L.ActiveOverlay = L.Layer.extend({
 	onAdd: function () {
 		var el = this._svgElem;
 
-		/*** REMOVE
-		// tbd: do we need to update both '.className' and '.classList' this way? AKa270815
+		// Note: The below '.classList' setting is vital for zooming to be performed smoothly.
+		//      '.className' does not seem to matter.
 		//
-		el.className = 'leaflet-active-layer ' + (this._zoomAnimated ? 'leaflet-zoom-animated' : '');
+		/*** REMOVE
+		//el.className = 'leaflet-active-layer ' + (this._zoomAnimated ? 'leaflet-zoom-animated' : '');
 
 		el.classList.add('leaflet-active-layer');
 		if (this._zoomAnimated) {
@@ -65,6 +66,15 @@ L.ActiveOverlay = L.Layer.extend({
 		}
 		***/
 
+		L.DomUtil.addClass(el, 'leaflet-active-layer');
+		if (this._zoomAnimated) {
+			L.DomUtil.addClass(el, 'leaflet-zoom-animated');
+		}
+
+		// Note: The contents behave interactive (i.e. get mouse events) even when 'interactive' option
+		//    is false. We probably need something else to ban mouse events from flying into the SVG,
+		//    or simply take away the "interactive" option completely. AKa270815
+		//
 		if (this.options.interactive) {
 			L.DomUtil.addClass(el, 'leaflet-interactive');
 			this.addInteractiveTarget(el);
