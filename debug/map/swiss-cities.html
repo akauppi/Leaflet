@@ -68,14 +68,12 @@
 
     // Set up the SVG
     //
-    var svgElem= L.DomUtil.create('svg');   //document.createElementNS('http://www.w3.org/2000/svg','svg');
-    
-    var overlay = L.activeOverlay( svgElem, bounds, {
+    var overlay = L.activeOverlay( bounds, {
       unit: 417   // SVG unit's size in m (adjusts so that the outcome looks like original D3 demo)
     } );
     overlay.addTo(map);    
 
-    var root= d3.select(svgElem);
+    var root= d3.select( overlay.getElement() );
     
     var cities = data.map( function (d) {    // [ { latLng: [lat_num,lng_num], population: int, place: str }, ... ]
       d.latLng = L.latLng(+d.lat,+d.lng);

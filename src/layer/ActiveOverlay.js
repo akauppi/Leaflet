@@ -1,36 +1,48 @@
 /*
- * L.ActiveOverlay sets an SVG element over the map.
+ * L.ActiveOverlay sets an independent SVG universe over the map, handling the
+ * panning and scaling without any modifications within the SVG universe required
+ * (i.e. ActiveOverlay adjusts the svg viewbox appropriately).
  *
- * The size and position of the 'svg' element itself remains fixed, relative to the map,
- * just as for 'L.ImageOverlay'.
+ * In practice, this is akin to 'L.ImageOverlay' but the contents can move, be
+ * animated and be interactive.
  *
- * Elements within the SVG are not affected by the panning and scaling, and can be
- * managed using any SVG library (s.a. SnapSVG or D3).
+ * Since the technique doesn't touch the internals of the SVG at all, any SVG library
+ * (such as SnapSVG, D3 or svg.js) can be used.
+ *
+ * Pros:
+ *    - any SVG library can be used (such as SnapSVG, D3 or svg.js)
+ *    - anything is possible (that SVG itself supports)
+ *
+ * Cons:
+ *    - not tiled; if you have a lot of polylines, or your data covers a wide
+ *      geographic area, it may be best to use the normal Leaflet vector elements
+ *      for drawing those (you can of course do a hybrid of vectors + activeOverlay).
+ *
+ * Developer note:
+ *    - If this code were to be taken to Leaflet proper, one day, it may be useful
+ *      to create a common base class for 'L.ImageOverlay' and this; common code
+ *      could then live in that base class.
  */
 
 L.ActiveOverlay = L.Layer.extend({
 
 	/* Design note: there does not seem to be a way to apply opacity to an 'svg' HTML tag,
 	 *       so it's left out of options, compared to 'L.ImageOverlay'. To get the
-	 *       same effect, one would set one group ('<g>') within the SVG and control
-	 *       its opacity instead.
+	 *       same effect, one can set a group ('<g>') within the SVG and control its opacity instead.
 	 */
 	options: {
-		unit: 1.0             // SVG units (meters)
+		unit: 1.0,            // SVG units (meters)
+		interactive: false    // like 'L.ImageOverlay' has interactive 'false' by default
 	},
 
-	/* Design note: either the caller (as in here) or us could create the 'svgElem'.
-	 *        This way is more in line with the 'L.ImageOverlay' parameter list (which has
-	 *        the picture's URL as the first param). Also, this means we do not need to
-	 *        expose the element as a property ('.svgElem') or return a value from 'initialize'.
+	/* Design note: either the caller or us could create the 'svgElem' (now we do it).
 	 */
-	initialize: function (svgElem, bounds, options) { // (Svg element, LatLngBounds [, Object])
-
-		this._svgElem = svgElem;
+	initialize: function (bounds, options) { // (LatLngBounds [, Object])
 		this._bounds = bounds;
 		this._zoomAnimated = true;
+		this._initSvg();    // sets 'this._svgElem'
 
-		// Set by '._reset()':
+		// Set elsewhere:
 		//
 		// this._initialized: boolean   (true)
 		// this._svgSize: Point         (constant)
@@ -42,20 +54,21 @@ L.ActiveOverlay = L.Layer.extend({
 	onAdd: function () {
 		var el = this._svgElem;
 
+		/*** REMOVE
+		// tbd: do we need to update both '.className' and '.classList' this way? AKa270815
+		//
 		el.className = 'leaflet-active-layer ' + (this._zoomAnimated ? 'leaflet-zoom-animated' : '');
 
 		el.classList.add('leaflet-active-layer');
 		if (this._zoomAnimated) {
 			el.classList.add('leaflet-zoom-animated');
 		}
+		***/
 
-		// Q: No need to trigger 'onload' for vectors, is there (the reason would be to keep the
-		//    interface 1-to-1 with 'L.ImageOverlay').
-		//
-		//L.bind(this.fire, this, 'load')();    // call immediately
-
-		el.onselectstart = L.Util.falseFn;
-		el.onmousemove = L.Util.falseFn;
+		if (this.options.interactive) {
+			L.DomUtil.addClass(el, 'leaflet-interactive');
+			this.addInteractiveTarget(el);
+		}
 
 		this.getPane().appendChild(el);
 		this._reset();
@@ -63,6 +76,9 @@ L.ActiveOverlay = L.Layer.extend({
 
 	onRemove: function () {
 		L.DomUtil.remove(this._svgElem);
+		if (this.options.interactive) {
+			this.removeInteractiveTarget(this._image);
+		}
 	},
 
 	bringToFront: function () {
@@ -81,6 +97,7 @@ L.ActiveOverlay = L.Layer.extend({
 
 	getEvents: function () {
 		var events = {
+		  zoom: this._reset,
 			viewreset: this._reset
 		};
 
@@ -95,15 +112,24 @@ L.ActiveOverlay = L.Layer.extend({
 		return this._bounds;
 	},
 
+	getElement: function () {
+		return this._svgElem;
+	},
+
+	_initSvg: function () {
+		this._svgElem = L.DomUtil.create('svg',
+				'leaflet-active-layer ' + (this._zoomAnimated ? 'leaflet-zoom-animated' : ''));
+
+		var el = this._svgElem;
+		el.onselectstart = L.Util.falseFn;
+		el.onmousemove = L.Util.falseFn;
+	},
+
 	_animateZoom: function (e) {
-		var bounds = L.bounds(
-			this._map._latLngToNewLayerPoint(this._bounds.getNorthWest(), e.zoom, e.center),
-		  this._map._latLngToNewLayerPoint(this._bounds.getSouthEast(), e.zoom, e.center)
-		);
+		var scale = this._map.getZoomScale(e.zoom),
+			offset = this._map._latLngToNewLayerPoint(this._bounds.getNorthWest(), e.zoom, e.center);
 
-		var offset = bounds.min.add(bounds.getSize()._multiplyBy((1 - 1 / e.scale) / 2));
-
-		L.DomUtil.setTransform(this._svgElem, offset, e.scale);
+		L.DomUtil.setTransform(this._svgElem, offset, scale);
 	},
 
 	_reset: function () {      // ([Event]) ->
@@ -134,7 +160,8 @@ L.ActiveOverlay = L.Layer.extend({
 		//
 		var pBounds = L.bounds(
 			this._map.latLngToLayerPoint(this._bounds.getNorthWest()),
-			this._map.latLngToLayerPoint(this._bounds.getSouthEast()));
+			this._map.latLngToLayerPoint(this._bounds.getSouthEast())
+	  );
 
 		var size = pBounds.getSize();    // size in screen pixels
 
@@ -188,6 +215,6 @@ L.ActiveOverlay = L.Layer.extend({
 	}
 });
 
-L.activeOverlay = function (svgElem, bounds, options) {   // (SVGelem, LatLngBounds [, Object])
-	return new L.ActiveOverlay(svgElem, bounds, options);
+L.activeOverlay = function (bounds, options) {   // (LatLngBounds [, Object])
+	return new L.ActiveOverlay(bounds, options);
 };
